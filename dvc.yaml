@@ -1,0 +1,32 @@
+stages:
+  download:
+    cmd: python -m src.data.download
+    outs:
+      - data/raw/cifake
+  embed:
+    cmd: python -m src.data.embeddings
+    deps:
+      - data/raw/cifake
+      - src/data/embeddings.py
+    outs:
+      - data/embeddings
+  train:
+    cmd: python -m src.models.train
+    deps:
+      - data/raw/cifake
+      - src/models/train.py
+      - src/models/classifier.py
+    outs:
+      - checkpoints
+    metrics:
+      - metrics/train_metrics.json:
+          cache: false
+  evaluate:
+    cmd: python -m src.models.evaluate
+    deps:
+      - checkpoints
+      - data/raw/cifake
+      - src/models/evaluate.py
+    metrics:
+      - metrics/eval_metrics.json:
+          cache: false

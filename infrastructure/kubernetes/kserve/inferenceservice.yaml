@@ -1,0 +1,30 @@
+apiVersion: "serving.kserve.io/v1beta1"
+kind: "InferenceService"
+metadata:
+  name: aislop-classifier
+  namespace: aislop
+  annotations:
+    sidecar.istio.io/inject: "false"
+spec:
+  predictor:
+    canaryTrafficPercent: 5
+    minReplicas: 1
+    maxReplicas: 3
+    model:
+      modelFormat:
+        name: pytorch
+      storageUri: "https://aislopstorage.blob.core.windows.net/models"
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "500m"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
+      readinessProbe:
+        httpGet:
+          path: /v1/models/aislop
+          port: 8080
+        initialDelaySeconds: 30
+    containerConcurrency: 5
+    timeout: 60

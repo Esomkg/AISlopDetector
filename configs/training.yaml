@@ -1,0 +1,27 @@
+training:
+  backbone: "efficientnet_b3"
+  num_classes: 2
+  image_size: 224
+  batch_size: 64
+  epochs: 10
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  num_workers: 4
+  seed: 42
+  label_smoothing: 0.1
+
+data:
+  raw_dir: "data/raw/cifake"
+  val_split: 0.1
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+
+mlflow:
+  experiment_name: "aislop-detector"
+  tracking_uri: "http://localhost:5501"
+
+checkpoint:
+  save_dir: "checkpoints"
+  save_top_k: 3
+  monitor: "val_accuracy"
+  mode: "max"

@@ -1,0 +1,156 @@
+name: aislop-detector
+
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  airflow-init:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: aislop-airflow:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: &airflow-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      MLFLOW_TRACKING_URI: http://mlflow-server:5500
+      FEAST_REPO_PATH: /opt/airflow/src/features/feature_repo
+    entrypoint: >
+      /bin/bash -c "
+      echo '=== AISlopDetector Airflow Init ===';
+      airflow db migrate;
+      airflow users create -u admin -p admin -f Admin -l User -r Admin -e admin@example.com || true;
+      echo 'Airflow init complete.'
+      "
+    restart: "no"
+
+  airflow-webserver:
+    image: aislop-airflow:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *airflow-env
+      AIRFLOW__WEBSERVER__SECRET_KEY: dev-secret-key-change-in-production
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../src:/opt/airflow/src
+      - ../configs:/opt/airflow/configs
+      - airflow_logs:/opt/airflow/logs
+    ports:
+      - "8080:8080"
+    command: webserver
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  airflow-scheduler:
+    image: aislop-airflow:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *airflow-env
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../src:/opt/airflow/src
+      - ../configs:/opt/airflow/configs
+      - airflow_logs:/opt/airflow/logs
+      - ../data:/opt/airflow/data
+      - ../checkpoints:/opt/airflow/checkpoints
+      - ../metrics:/opt/airflow/metrics
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+      interval: 30s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  mlflow-server:
+    image: aislop-airflow:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: airflow
+    volumes:
+      - mlflow_artifacts:/opt/airflow/mlartifacts
+    ports:
+      - "5501:5500"
+    entrypoint: >
+      /bin/bash -c "
+      echo 'Creating mlflow database...';
+      psql -h postgres -U airflow -d airflow -tc \"SELECT 1 FROM pg_database WHERE datname = 'mlflow'\" | grep -q 1 || psql -h postgres -U airflow -d airflow -c \"CREATE DATABASE mlflow\";
+      echo 'Starting MLflow server...';
+      exec mlflow server --host 0.0.0.0 --port 5500 --backend-store-uri postgresql+psycopg2://airflow:airflow@postgres/mlflow --default-artifact-root /opt/airflow/mlartifacts
+      "
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:5500"]
+      interval: 30s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    environment:
+      LABEL_STUDIO_HOST: "http://0.0.0.0:8080"
+      LABEL_STUDIO_DEFAULT_USERNAME: admin
+      LABEL_STUDIO_DEFAULT_PASSWORD: admin
+    ports:
+      - "8083:8080"
+    volumes:
+      - label_studio_data:/label-studio/data
+      - ../data/raw:/label-studio/data/images:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080"]
+      interval: 30s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  airflow_logs:
+  mlflow_artifacts:
+  label_studio_data:

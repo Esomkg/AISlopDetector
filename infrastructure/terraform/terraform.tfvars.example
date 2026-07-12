@@ -1,0 +1,12 @@
+subscription_id    = "00000000-0000-0000-0000-000000000000"
+location           = "eastus"
+resource_group_name = "aislop-detector-rg"
+cluster_name       = "aislop-aks"
+acr_name           = "aislopacr"
+storage_account_name = "aislopstorage"
+redis_name         = "aislop-redis"
+node_count         = 2
+node_vm_size       = "Standard_D4s_v3"
+gpu_vm_size        = "Standard_NC6s_v3"
+gpu_node_count     = 0
+gpu_max_nodes      = 3

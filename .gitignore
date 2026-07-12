@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual env
+.venv/
+venv/
+
+# Data
+data/
+checkpoints/
+metrics/
+
+# MLflow
+mlruns/
+mlartifacts/
+*.db
+
+# DVC
+.dvc/tmp/
+.dvc/cache/
+
+# Feast
+registry.db
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.hypothesis/
+
+# Notebooks
+.ipynb_checkpoints/

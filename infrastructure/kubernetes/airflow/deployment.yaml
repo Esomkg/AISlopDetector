@@ -1,0 +1,62 @@
+# Airflow Helm values for AISlopDetector AKS deployment
+# Install with:
+#   helm repo add apache-airflow https://airflow.apache.org
+#   helm upgrade --install airflow apache-airflow/airflow -n aislop -f values.yaml
+
+executor: "KubernetesExecutor"
+
+env:
+  - name: AIRFLOW__CORE__LOAD_EXAMPLES
+    value: "false"
+  - name: MLFLOW_TRACKING_URI
+    value: "http://mlflow-service.aislop.svc.cluster.local:5500"
+  - name: FEAST_REPO_PATH
+    value: "/opt/airflow/src/features/feature_repo"
+
+dags:
+  persistence:
+    enabled: true
+    size: 5Gi
+  gitSync:
+    enabled: true
+    repo: "https://github.com/your-org/aislop-detector.git"
+    branch: "main"
+    subPath: "dags"
+
+extraVolumeMounts:
+  - name: src-code
+    mountPath: /opt/airflow/src
+
+extraVolumes:
+  - name: src-code
+    persistentVolumeClaim:
+      claimName: aislop-code-pvc
+
+createUserJob:
+  useHelmHooks: false
+
+postgresql:
+  enabled: true
+  auth:
+    username: airflow
+    password: airflow
+    database: airflow
+
+redis:
+  enabled: true
+
+logs:
+  persistence:
+    enabled: true
+
+webserver:
+  service:
+    type: ClusterIP
+
+ingress:
+  enabled: true
+  hosts:
+    - host: airflow.aislop.example.com
+      paths:
+        - path: /
+          pathType: Prefix
