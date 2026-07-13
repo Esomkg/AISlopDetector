@@ -22,4 +22,11 @@ RUN pip install --no-cache-dir \
     tqdm \
     python-dotenv \
     pandas \
-    psycopg2-binary
+    psycopg2-binary \
+    open-clip-torch \
+    kagglehub \
+    fastapi \
+    uvicorn \
+    prometheus-client \
+    azure-ai-ml \
+    azure-identity

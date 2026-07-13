@@ -1,8 +1,8 @@
 """Training pipeline DAG for AISlopDetector.
 
-Orchestrates embedding extraction, model training, evaluation,
-champion/challenger head-to-head comparison, and conditional model promotion.
-Can be triggered on a schedule or by a drift alert from the monitoring DAG.
+Orchestrates embedding extraction, model training (via Azure ML GPU compute),
+evaluation, champion/challenger head-to-head comparison, and conditional
+model promotion. Can be triggered on a schedule or by a drift alert.
 """
 
 import json
@@ -20,6 +20,13 @@ from common import DEFAULT_ARGS, SRC_PATH
 
 PROJECT_ROOT = SRC_PATH.parent
 
+# Azure ML config — populated from Terraform outputs or env vars
+AML_WORKSPACE = os.environ.get("AML_WORKSPACE_NAME", "aislop-ml")
+AML_RESOURCE_GROUP = os.environ.get("AML_RESOURCE_GROUP", "aislop-detector-rg")
+AML_SUBSCRIPTION = os.environ.get("AZURE_SUBSCRIPTION_ID", "")
+AML_COMPUTE = "gpu-cluster"
+AML_ENVIRONMENT = "aislop-training"
+AML_DOCKER_IMAGE = os.environ.get("AML_DOCKER_IMAGE", f"aislopacr.azurecr.io/aislop:latest")
 def run_embeddings(**context):
     """Extract CLIP embeddings for all images in the latest batch."""
     print("[training.embeddings] Starting embedding extraction...")
@@ -36,20 +43,71 @@ def run_embeddings(**context):
     print("[training.embeddings] Embedding extraction complete.")
 
 def run_training(**context):
-    """Train the AISlop classifier."""
-    config_path = PROJECT_ROOT / "configs" / "training.yaml"
-    print(f"[training.train] Starting training with config: {config_path}")
-    result = subprocess.run(
-        [sys.executable, "-m", "src.models.train"],
-        cwd=str(PROJECT_ROOT),
-        capture_output=True,
-        text=True,
-    )
-    print(result.stdout)
-    if result.returncode != 0:
-        print(result.stderr)
-        raise RuntimeError(f"Training failed: {result.stderr}")
-    print("[training.train] Training complete.")
+    """Submit Azure ML training job on GPU compute cluster.
+
+    Falls back to local subprocess if Azure ML SDK is unavailable.
+    """
+    try:
+        from azure.ai.ml import MLClient, command
+        from azure.identity import DefaultAzureCredential
+        HAS_AML = True
+    except ImportError:
+        HAS_AML = False
+
+    if HAS_AML and AML_SUBSCRIPTION:
+        print(f"[training.train] Submitting Azure ML job to {AML_COMPUTE}...")
+        try:
+            credential = DefaultAzureCredential()
+            ml_client = MLClient(credential, AML_SUBSCRIPTION, AML_RESOURCE_GROUP, AML_WORKSPACE)
+
+            job = command(
+                code=str(PROJECT_ROOT),
+                command=(
+                    "python src/models/azureml_train.py "
+                    "--data-dir data/raw/cifake "
+                    "--epochs 10 "
+                    "--batch-size 64 "
+                    "--backbone efficientnet_b3 "
+                    "--download"
+                ),
+                compute=AML_COMPUTE,
+                environment=f"{AML_WORKSPACE}:{AML_ENVIRONMENT}@latest",
+                display_name=f"aislop-train-{context['ds_nodash']}",
+                experiment_name="aislop-detector",
+            )
+
+            submitted = ml_client.jobs.create_or_update(job)
+            print(f"[training.train] Job submitted: {submitted.name}")
+
+            ml_client.jobs.stream(submitted.name)
+            print(f"[training.train] Azure ML training complete. Status: {submitted.status}")
+
+            ckpt_dir = PROJECT_ROOT / "checkpoints"
+            ckpt_dir.mkdir(parents=True, exist_ok=True)
+            ml_client.jobs.download(
+                name=submitted.name,
+                download_path=str(ckpt_dir),
+                output_name="output",
+            )
+            print("[training.train] Model checkpoint downloaded from Azure ML.")
+
+        except Exception as e:
+            print(f"[training.train] Azure ML error: {e}")
+            HAS_AML = False
+
+    if not HAS_AML:
+        print("[training.train] Running training locally (no Azure ML SDK available)...")
+        result = subprocess.run(
+            [sys.executable, "-m", "src.models.train", "--epochs", "10"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        print(result.stdout)
+        if result.returncode != 0:
+            print(result.stderr)
+            raise RuntimeError(f"Training failed: {result.stderr}")
+        print("[training.train] Local training complete.")
 
 def run_evaluation(**context):
     """Evaluate the trained model and return metrics."""

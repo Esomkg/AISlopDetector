@@ -10,3 +10,8 @@ node_vm_size       = "Standard_D4s_v3"
 gpu_vm_size        = "Standard_NC6s_v3"
 gpu_node_count     = 0
 gpu_max_nodes      = 3
+
+ml_workspace_name  = "aislop-ml"
+ml_gpu_vm_size     = "Standard_NC6s_v3"
+ml_gpu_max_nodes   = 4
+use_spot_vms       = true

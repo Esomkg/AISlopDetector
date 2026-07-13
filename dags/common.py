@@ -1,7 +1,6 @@
 """Shared utilities for AISlopDetector Airflow DAGs."""
 
 import sys
-import os
 from pathlib import Path
 
 AIRFLOW_HOME = Path("/opt/airflow")
@@ -14,7 +13,7 @@ sys.path.insert(0, str(SRC_PATH.parent))
 DEFAULT_ARGS = {
     "owner": "aislop",
     "retries": 1,
-    "retry_delay": 5 * 60,
+    "retry_delay": 300,
     "email_on_failure": False,
 }
 

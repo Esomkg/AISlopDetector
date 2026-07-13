@@ -69,3 +69,27 @@ variable "gpu_max_nodes" {
   type        = number
   default     = 3
 }
+
+variable "ml_workspace_name" {
+  description = "Azure ML Workspace name"
+  type        = string
+  default     = "aislop-ml"
+}
+
+variable "ml_gpu_vm_size" {
+  description = "Azure ML GPU compute VM size"
+  type        = string
+  default     = "Standard_NC6s_v3"
+}
+
+variable "ml_gpu_max_nodes" {
+  description = "Azure ML GPU compute max autoscale nodes"
+  type        = number
+  default     = 4
+}
+
+variable "use_spot_vms" {
+  description = "Use spot VMs for Azure ML compute (~80% cheaper)"
+  type        = bool
+  default     = true
+}

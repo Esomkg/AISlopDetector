@@ -12,9 +12,10 @@ from typing import Optional
 import torch
 import numpy as np
 from PIL import Image
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, HTMLResponse
 import uvicorn
+from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
 
 from src.models.classifier import AISlopClassifier
 from src.data.transforms import get_val_transforms
@@ -30,6 +31,8 @@ MODEL = None
 DEVICE = None
 TRANSFORM = None
 CLASS_LABELS = {0: "REAL", 1: "FAKE"}
+PREDICTION_COUNT = Counter("aislop_predictions_total", "Total predictions", ["class"])
+ERROR_COUNT = Counter("aislop_errors_total", "Total prediction errors")
 LOW_CONFIDENCE_THRESHOLD = 0.6
 
 
@@ -40,7 +43,15 @@ class ModelService:
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         self.model = AISlopClassifier(num_classes=2, backbone_name=backbone, pretrained=False)
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
-        self.model.load_state_dict(checkpoint["model_state_dict"])
+        state_dict = checkpoint["model_state_dict"]
+
+        # Remap keys from Kaggle notebook format (backbone.classifier.x → head.x)
+        remapped = {}
+        for key, value in state_dict.items():
+            new_key = key.replace("backbone.classifier.", "head.")
+            remapped[new_key] = value
+
+        self.model.load_state_dict(remapped)
         self.model.to(self.device)
         self.model.eval()
         self.transform = get_val_transforms(image_size=224)
@@ -297,6 +308,11 @@ async def health():
     return {"status": "healthy", "device": str(DEVICE)}
 
 
+@app.get("/metrics")
+async def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     """Classify a single uploaded image as REAL or FAKE.
@@ -311,9 +327,11 @@ async def predict(file: UploadFile = File(...)):
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
     except Exception:
+        ERROR_COUNT.inc()
         raise HTTPException(status_code=400, detail="Invalid image file")
     
     result = MODEL.predict(image)
+    PREDICTION_COUNT.labels(result["predicted_class"]).inc()
     result["filename"] = file.filename
     return JSONResponse(content=result)
 
@@ -335,9 +353,12 @@ async def predict_batch(files: list[UploadFile] = File(...)):
             img = Image.open(io.BytesIO(contents)).convert("RGB")
             images.append(img)
         except Exception:
+            ERROR_COUNT.inc()
             raise HTTPException(status_code=400, detail=f"Invalid image file: {file.filename}")
     
     results = MODEL.predict_batch(images)
+    for r in results:
+        PREDICTION_COUNT.labels(r["predicted_class"]).inc()
     for i, (result, file) in enumerate(zip(results, files)):
         result["filename"] = file.filename
     return JSONResponse(content=results)
@@ -362,9 +383,11 @@ async def kserve_predict(payload: dict):
             img_data = base64.b64decode(instance["image"])
             image = Image.open(io.BytesIO(img_data)).convert("RGB")
             result = MODEL.predict(image)
+            PREDICTION_COUNT.labels(result["predicted_class"]).inc()
             results.append(result)
         return JSONResponse(content={"predictions": results})
     except Exception as e:
+        ERROR_COUNT.inc()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -380,6 +403,7 @@ async def predict_with_review(file: UploadFile = File(...)):
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
     except Exception:
+        ERROR_COUNT.inc()
         raise HTTPException(status_code=400, detail="Invalid image file")
 
     result = MODEL.predict(image)

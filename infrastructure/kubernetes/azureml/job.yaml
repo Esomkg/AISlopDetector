@@ -1,0 +1,23 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+command: >
+  python src/models/azureml_train.py
+  --data-dir data/raw/cifake
+  --epochs 10
+  --batch-size 64
+  --backbone efficientnet_b3
+  --download
+code: ../..
+environment:
+  image: aislopacr.azurecr.io/aislop:latest
+compute: azureml:gpu-cluster
+display_name: aislop-train-cifake
+experiment_name: aislop-detector
+inputs: {}
+outputs:
+  output:
+    type: uri_folder
+    path: azureml://datastores/workspaceblobstore/paths/checkpoints
+resources:
+  instance_count: 1
+limits:
+  timeout: 14400

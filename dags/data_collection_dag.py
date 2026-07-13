@@ -51,24 +51,24 @@ with DAG(
         print(f"[data_collection] NOTE: This is a stub. Replace with real scrapers (Phase 5+).")
 
     def tag_real_images(**context):
-        """Collect real images from in-the-wild sources (stub)."""
+        """Collect real images from Unsplash API."""
         batch_date = context["ds_nodash"]
-        real_dir = Path(DATA_PATH) / "raw" / f"batch_{batch_date}" / "real_wild"
-        real_dir.mkdir(parents=True, exist_ok=True)
+        real_dir = Path(DATA_PATH) / "raw" / f"batch_{batch_date}" / "REAL"
 
-        metadata = {
-            "generator_name": "none",
-            "collection_date": context["ds"],
-            "source": "stub_unsplash_api",
-            "image_count": 0,
-            "note": "Stub — replace with Unsplash/OpenImages API",
-        }
+        try:
+            from src.data.scrapers.unsplash_scraper import UnsplashScraper
 
-        import json
-        with open(real_dir / "metadata.json", "w") as f:
-            json.dump(metadata, f, indent=2)
-
-        print(f"[data_collection] Real image batch created at {real_dir}")
+            scraper = UnsplashScraper(output_dir=real_dir)
+            count = scraper.scrape(max_images=50)
+            print(f"[data_collection] Downloaded {count} real images from Unsplash to {real_dir}")
+        except ImportError:
+            print("[data_collection] UnsplashScraper not available — falling back to stub")
+            real_dir.mkdir(parents=True, exist_ok=True)
+            import json
+            with open(real_dir / "metadata.json", "w") as f:
+                json.dump({"source": "unsplash_api", "count": 0, "note": "Stub — set UNSPLASH_ACCESS_KEY"}, f, indent=2)
+        except Exception as e:
+            print(f"[data_collection] Unsplash error: {e}")
 
     collect_generated = PythonOperator(
         task_id="collect_generated_images",

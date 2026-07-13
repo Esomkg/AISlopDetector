@@ -42,5 +42,12 @@ Thumbs.db
 .pytest_cache/
 .hypothesis/
 
+# Terraform (infrastructure state — do not commit)
+infrastructure/terraform/.terraform/
+infrastructure/terraform/.terraform.lock.hcl
+infrastructure/terraform/terraform.tfstate
+infrastructure/terraform/terraform.tfstate.backup
+infrastructure/terraform/terraform.tfvars
+
 # Notebooks
 .ipynb_checkpoints/

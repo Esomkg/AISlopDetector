@@ -4,6 +4,6 @@ provider: local
 offline_store:
   type: file
 online_store:
-  type: redis
-  connection_string: "redis:6379"
+  type: sqlite
+  path: online_store.db
 entity_key_serialization_version: 2

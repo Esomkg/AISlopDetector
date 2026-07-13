@@ -42,3 +42,11 @@ output "kube_config" {
   value     = azurerm_kubernetes_cluster.aislop.kube_config_raw
   sensitive = true
 }
+
+output "ml_workspace_name" {
+  value = azurerm_machine_learning_workspace.aislop.name
+}
+
+output "ml_compute_cluster_name" {
+  value = azurerm_machine_learning_compute_cluster.gpu.name
+}
