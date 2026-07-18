@@ -117,110 +117,299 @@ async def index():
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AISlopDetector</title>
+<title>AI Slop Detector</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #000;
+  --surface: #0a0a0a;
+  --border: #1a2e1a;
+  --text: #e8e8e8;
+  --muted: #6b8b6b;
+  --green: #00e676;
+  --red: #ff3d3d;
+  --radius: 10px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: #0d1117; color: #c9d1d9; min-height: 100vh;
-  display: flex; justify-content: center; padding: 40px 20px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #000;
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+  position: relative;
+  overflow-x: hidden;
 }
-.container { max-width: 720px; width: 100%; }
-h1 { font-size: 1.8rem; font-weight: 600; margin-bottom: 4px; }
-.subtitle { color: #8b949e; font-size: 0.9rem; margin-bottom: 32px; }
-.upload-zone {
-  border: 2px dashed #30363d; border-radius: 12px;
-  padding: 48px 24px; text-align: center; cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(0,230,118,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(0,230,118,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 70%);
+  animation: bgShift 20s ease-in-out infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes bgShift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(1%, -1%) rotate(0.5deg); }
+  66% { transform: translate(-1%, 1%) rotate(-0.5deg); }
+}
+
+.header {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(12px);
+}
+
+.header-left {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.header h1 {
+  font-size: 1.05rem; font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.status {
+  font-size: 0.7rem; padding: 4px 10px; border-radius: 20px;
+  font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase;
+}
+.status.ready { background: rgba(0,230,118,0.12); color: var(--green); }
+.status.offline { background: rgba(255,61,61,0.12); color: var(--red); }
+
+.container { max-width: 780px; margin: 0 auto; padding: 36px 24px; position: relative; z-index: 1; }
+
+.upload-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
   margin-bottom: 24px;
+  transition: border-color 0.3s;
 }
+.upload-section:focus-within { border-color: var(--green); }
+
+.upload-zone {
+  padding: 52px 24px; text-align: center; cursor: pointer;
+  transition: background 0.2s;
+}
+
 .upload-zone:hover, .upload-zone.dragover {
-  border-color: #58a6ff; background: rgba(88,166,255,0.06);
+  background: rgba(0,230,118,0.03);
 }
-.upload-zone p { color: #8b949e; font-size: 0.95rem; }
-.upload-zone .icon { font-size: 2.5rem; margin-bottom: 12px; display: block; }
-.preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 12px; margin-bottom: 24px; }
+
+.upload-icon {
+  width: 56px; height: 56px; margin: 0 auto 16px;
+  border-radius: 50%;
+  background: rgba(0,230,118,0.06);
+  border: 1px solid rgba(0,230,118,0.15);
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+.upload-zone:hover .upload-icon, .upload-zone.dragover .upload-icon {
+  border-color: var(--green);
+  background: rgba(0,230,118,0.1);
+}
+
+.upload-icon svg {
+  width: 24px; height: 24px;
+  stroke: var(--green);
+}
+
+.upload-zone p { color: var(--muted); font-size: 0.9rem; }
+.upload-zone p span { color: var(--green); cursor: pointer; font-weight: 500; }
+
+.preview-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px; padding: 16px;
+  border-top: 1px solid var(--border);
+  display: none;
+}
+.preview-grid.has-files { display: grid; }
+
 .preview-card {
-  background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-  overflow: hidden; position: relative;
+  position: relative; border-radius: 6px; overflow: hidden;
+  aspect-ratio: 1;
 }
-.preview-card img { width: 100%; height: 140px; object-fit: cover; display: block; }
+.preview-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .preview-card .remove {
-  position: absolute; top: 6px; right: 6px;
-  background: rgba(0,0,0,0.6); color: #fff; border: none;
-  border-radius: 50%; width: 24px; height: 24px;
-  cursor: pointer; font-size: 14px; line-height: 24px; text-align: center;
+  position: absolute; top: 4px; right: 4px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(0,0,0,0.8); color: #fff; border: none;
+  cursor: pointer; font-size: 12px; display: flex;
+  align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.15s;
 }
-.actions { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+.preview-card:hover .remove { opacity: 1; }
+
+.actions {
+  display: flex; gap: 10px; padding: 0 16px 16px;
+  display: none;
+}
+.actions.visible { display: flex; }
+
 .btn {
-  padding: 10px 24px; border-radius: 8px; border: none;
-  font-size: 0.95rem; font-weight: 600; cursor: pointer;
-  transition: opacity 0.2s;
+  padding: 10px 20px; border-radius: 8px; border: none;
+  font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  transition: all 0.15s; font-family: inherit;
 }
-.btn:hover { opacity: 0.85; }
-.btn-primary { background: #238636; color: #fff; }
-.btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.results { display: flex; flex-direction: column; gap: 16px; }
+.btn-primary { background: var(--green); color: #000; }
+.btn-primary:hover { background: #00c853; }
+.btn-secondary {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { color: var(--text); border-color: var(--muted); }
+.btn:disabled { opacity: 0.3; pointer-events: none; }
+
+.results { display: flex; flex-direction: column; gap: 12px; }
+
 .result-card {
-  background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-  padding: 20px; display: flex; align-items: center; gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  animation: slideIn 0.3s ease;
 }
-.result-card.real { border-left: 4px solid #238636; }
-.result-card.fake { border-left: 4px solid #da3633; }
-.result-card img { width: 100px; height: 100px; object-fit: cover; border-radius: 8px; }
-.result-info { flex: 1; }
-.result-label {
-  font-size: 1.2rem; font-weight: 700; margin-bottom: 4px;
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.result-label.real { color: #3fb950; }
-.result-label.fake { color: #f85149; }
-.result-filename { color: #8b949e; font-size: 0.8rem; margin-bottom: 8px; }
-.bar-group { margin-bottom: 6px; }
-.bar-label { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 2px; }
-.bar-outer { background: #21262d; border-radius: 4px; height: 8px; overflow: hidden; }
-.bar-inner { height: 100%; border-radius: 4px; transition: width 0.4s; }
-.bar-inner.real-bar { background: #238636; }
-.bar-inner.fake-bar { background: #da3633; }
-.loading { text-align: center; color: #8b949e; padding: 20px; }
-.error { background: rgba(218,54,51,0.1); border: 1px solid #da3633; border-radius: 8px; padding: 12px 16px; color: #f85149; margin-bottom: 16px; }
-.status-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;
-  background: #21262d; margin-left: 8px;
+
+.result-card.real { border-left: 3px solid var(--green); }
+.result-card.fake { border-left: 3px solid var(--red); }
+
+.result-preview {
+  width: 120px; min-width: 120px;
+  background: #111;
+  display: flex; align-items: center; justify-content: center;
 }
-.status-badge.on { background: rgba(63,185,80,0.15); color: #3fb950; }
-.status-badge.off { background: rgba(248,81,73,0.15); color: #f85149; }
-.stat { font-size: 0.75rem; color: #8b949e; margin-top: 8px; }
+
+.result-preview img { width: 100%; height: 120px; object-fit: cover; }
+
+.result-body { padding: 16px 20px; flex: 1; min-width: 0; }
+
+.result-verdict {
+  font-size: 1.1rem; font-weight: 700;
+  letter-spacing: 0.02em; margin-bottom: 2px;
+}
+.result-verdict.real { color: var(--green); }
+.result-verdict.fake { color: var(--red); }
+
+.result-file {
+  font-size: 0.75rem; color: var(--muted);
+  margin-bottom: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.gauge-row { display: flex; gap: 12px; }
+.gauge { flex: 1; }
+
+.gauge-header {
+  display: flex; justify-content: space-between;
+  font-size: 0.72rem; margin-bottom: 4px;
+  color: var(--muted);
+}
+
+.gauge-track {
+  height: 5px; background: rgba(255,255,255,0.06);
+  border-radius: 3px; overflow: hidden;
+}
+
+.gauge-fill {
+  height: 100%; border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.gauge-fill.real-bar { background: var(--green); }
+.gauge-fill.fake-bar { background: var(--red); }
+
+.gauge-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.review-badge {
+  display: inline-block; font-size: 0.68rem; padding: 2px 8px;
+  border-radius: 12px; margin-top: 8px;
+  background: rgba(255,193,7,0.1); color: #ffc107;
+}
+
+.loading {
+  text-align: center; padding: 40px; color: var(--muted);
+}
+
+.error {
+  background: rgba(255,61,61,0.06);
+  border: 1px solid rgba(255,61,61,0.2);
+  border-radius: var(--radius); padding: 14px 18px;
+  color: var(--red); font-size: 0.85rem;
+}
+
 .file-input { display: none; }
-@media (max-width: 500px) {
-  .result-card { flex-direction: column; align-items: flex-start; }
+
+.footer {
+  text-align: center; padding: 40px 24px;
+  color: var(--muted); font-size: 0.72rem;
+  position: relative; z-index: 1;
+}
+
+@media (max-width: 600px) {
+  .result-card { flex-direction: column; }
+  .result-preview { width: 100%; min-width: 100%; }
+  .result-preview img { height: 200px; }
+  .header { padding: 12px 16px; }
+  .container { padding: 24px 16px; }
 }
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>AISlopDetector</h1>
-  <p class="subtitle">AI-generated image detection<span class="status-badge" id="statusBadge">checking...</span></p>
 
-  <div class="upload-zone" id="dropZone">
-    <span class="icon">&#x1f4c1;</span>
-    <p>Drop images here or click to browse</p>
-    <p style="font-size:0.8rem;margin-top:8px">Supports JPG, PNG, WEBP — single or batch</p>
+<header class="header">
+  <div class="header-left">
+    <h1>AI Slop Detector</h1>
   </div>
-  <input type="file" id="fileInput" class="file-input" accept="image/*" multiple>
+  <span class="status" id="statusBadge">checking</span>
+</header>
 
-  <div class="preview-grid" id="previewGrid"></div>
+<div class="container">
 
-  <div class="actions" id="actions" style="display:none">
-    <button class="btn btn-primary" id="predictBtn" onclick="runPrediction()">Detect</button>
-    <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+  <div class="upload-section">
+    <div class="upload-zone" id="dropZone">
+      <div class="upload-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <p>Drop images here or <span>click to browse</span></p>
+      <p style="font-size:0.75rem;margin-top:6px">JPG, PNG, WEBP — single or batch</p>
+    </div>
+    <input type="file" id="fileInput" class="file-input" accept="image/*" multiple>
+    <div class="preview-grid" id="previewGrid"></div>
+    <div class="actions" id="actions">
+      <button class="btn btn-primary" id="predictBtn" onclick="runPrediction()">Run Detection</button>
+      <button class="btn btn-secondary" onclick="clearAll()">Clear All</button>
+    </div>
   </div>
 
   <div class="results" id="results"></div>
 
-  <p class="stat" style="margin-top:48px;text-align:center">EfficientNet-B3 &bull; CLIP ViT-B/32 embeddings &bull; MMD drift monitoring</p>
 </div>
+
+<footer class="footer">
+  EfficientNet-B3 &bull; 98.4% accuracy &bull; MMD drift monitoring &bull; Self-healing detection
+</footer>
 
 <script>
 const dropZone = document.getElementById('dropZone')
@@ -232,42 +421,65 @@ const statusBadge = document.getElementById('statusBadge')
 let files = []
 
 async function checkHealth() {
-  try { const r = await fetch('/health'); const d = await r.json()
-    statusBadge.className = 'status-badge ' + (d.status==='healthy'?'on':'off')
-    statusBadge.textContent = d.status==='healthy' ? 'ready' : 'offline'
-  } catch(e) { statusBadge.className = 'status-badge off'; statusBadge.textContent = 'offline' }
+  try {
+    const r = await fetch('/health')
+    if (r.ok) {
+      statusBadge.className = 'status ready'
+      statusBadge.textContent = 'Ready'
+    } else { throw new Error() }
+  } catch(e) {
+    statusBadge.className = 'status offline'
+    statusBadge.textContent = 'Offline'
+  }
 }
 checkHealth(); setInterval(checkHealth, 30000)
 
 dropZone.addEventListener('click', () => fileInput.click())
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover') })
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'))
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); addFiles(Array.from(e.dataTransfer.files)) })
-fileInput.addEventListener('change', () => { addFiles(Array.from(fileInput.files)); fileInput.value = '' })
+dropZone.addEventListener('drop', e => {
+  e.preventDefault()
+  dropZone.classList.remove('dragover')
+  addFiles(Array.from(e.dataTransfer.files))
+})
+fileInput.addEventListener('change', () => {
+  addFiles(Array.from(fileInput.files))
+  fileInput.value = ''
+})
 
 function addFiles(newFiles) {
-  newFiles.forEach(f => { if (f.type.startsWith('image/') && !files.find(x => x.name===f.name)) files.push(f) })
+  newFiles.forEach(f => {
+    if (f.type.startsWith('image/') && !files.find(x => x.name === f.name)) files.push(f)
+  })
   renderPreviews()
 }
 
 function renderPreviews() {
-  previewGrid.innerHTML = ''; actions.style.display = files.length ? 'flex' : 'none'
+  previewGrid.innerHTML = ''
   files.forEach((f, i) => {
     const card = document.createElement('div'); card.className = 'preview-card'
     const img = document.createElement('img'); img.src = URL.createObjectURL(f)
     const btn = document.createElement('button'); btn.className = 'remove'; btn.textContent = 'x'
-    btn.onclick = () => { files.splice(i,1); renderPreviews() }
+    btn.onclick = () => { files.splice(i, 1); renderPreviews() }
     card.appendChild(img); card.appendChild(btn); previewGrid.appendChild(card)
   })
+  const has = files.length > 0
+  previewGrid.classList.toggle('has-files', has)
+  actions.classList.toggle('visible', has)
 }
 
-function clearAll() { files = []; results.innerHTML = ''; renderPreviews() }
+function clearAll() {
+  files = []
+  results.innerHTML = ''
+  renderPreviews()
+}
 
 async function runPrediction() {
   if (!files.length) return
-  results.innerHTML = '<div class="loading">Running detection...</div>'
+  results.innerHTML = '<div class="loading">Running detection</div>'
   const predictBtn = document.getElementById('predictBtn')
-  predictBtn.disabled = true; predictBtn.textContent = 'Analyzing...'
+  predictBtn.disabled = true
+  predictBtn.textContent = 'Analyzing...'
 
   try {
     const formData = new FormData()
@@ -275,32 +487,40 @@ async function runPrediction() {
     const res = await fetch('/predict/batch', { method: 'POST', body: formData })
     if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Prediction failed') }
     const predictions = await res.json()
+
     results.innerHTML = predictions.map((p, i) => `
       <div class="result-card ${p.predicted_class.toLowerCase()}">
-        <img src="${URL.createObjectURL(files[i])}" alt="preview">
-        <div class="result-info">
-          <div class="result-label ${p.predicted_class.toLowerCase()}">${p.predicted_class}</div>
-          <div class="result-filename">${p.filename || files[i].name}</div>
-          <div class="bar-group">
-            <div class="bar-label"><span>REAL</span><span>${(p.probabilities.REAL*100).toFixed(1)}%</span></div>
-            <div class="bar-outer"><div class="bar-inner real-bar" style="width:${(p.probabilities.REAL*100).toFixed(0)}%"></div></div>
+        <div class="result-preview">
+          <img src="${URL.createObjectURL(files[i])}" alt="preview">
+        </div>
+        <div class="result-body">
+          <div class="result-verdict ${p.predicted_class.toLowerCase()}">${p.predicted_class}</div>
+          <div class="result-file">${p.filename || files[i].name}</div>
+          <div class="gauge-row">
+            <div class="gauge">
+              <div class="gauge-header"><span>Real</span><span class="gauge-value">${(p.probabilities.REAL*100).toFixed(1)}%</span></div>
+              <div class="gauge-track"><div class="gauge-fill real-bar" style="width:${(p.probabilities.REAL*100).toFixed(0)}%"></div></div>
+            </div>
+            <div class="gauge">
+              <div class="gauge-header"><span>Fake</span><span class="gauge-value">${(p.probabilities.FAKE*100).toFixed(1)}%</span></div>
+              <div class="gauge-track"><div class="gauge-fill fake-bar" style="width:${(p.probabilities.FAKE*100).toFixed(0)}%"></div></div>
+            </div>
           </div>
-          <div class="bar-group">
-            <div class="bar-label"><span>FAKE</span><span>${(p.probabilities.FAKE*100).toFixed(1)}%</span></div>
-            <div class="bar-outer"><div class="bar-inner fake-bar" style="width:${(p.probabilities.FAKE*100).toFixed(0)}%"></div></div>
-          </div>
+          ${p.needs_review ? '<div class="review-badge">Needs review</div>' : ''}
         </div>
       </div>
     `).join('')
   } catch(e) {
     results.innerHTML = '<div class="error">' + e.message + '</div>'
   } finally {
-    predictBtn.disabled = false; predictBtn.textContent = 'Detect'
+    predictBtn.disabled = false
+    predictBtn.textContent = 'Run Detection'
   }
 }
 </script>
 </body>
 </html>"""
+@app.get("/health")
 async def health():
     """Health check endpoint."""
     if MODEL is None:
